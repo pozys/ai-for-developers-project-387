@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { NavLink, Outlet } from "react-router";
 
 import { ThemeToggle } from "@/theme/ThemeToggle";
+import { TimezoneSelector } from "@/components/TimezoneSelector";
 
 function getNavLinkClassName(isActive: boolean) {
   return [
@@ -45,6 +46,7 @@ export default function Layout({ children }: LayoutProps) {
             </div>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
+            <TimezoneSelector />
             <NavLink
               to="/"
               end
