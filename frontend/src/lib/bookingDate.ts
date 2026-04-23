@@ -1,4 +1,4 @@
-import { MOSCOW_TIME_ZONE } from "@/lib/date";
+import { getTimezone } from "@/lib/date";
 
 const BOOKING_WINDOW_DAYS = 14;
 const WEEKDAY_LABELS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
@@ -50,7 +50,7 @@ function formatUtcDateKey(date: Date) {
 }
 
 export function getTodayDateKey(now = new Date()) {
-  const { year, month, day } = getDateKeyParts(now, MOSCOW_TIME_ZONE);
+  const { year, month, day } = getDateKeyParts(now, getTimezone());
 
   return `${year}-${month}-${day}`;
 }
