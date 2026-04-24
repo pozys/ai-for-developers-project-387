@@ -19,30 +19,27 @@ test.describe("Выбор часового пояса", () => {
   }) => {
     await page.goto("/");
 
-    const timezoneSelect = page.getByLabel("Часовой пояс");
-    await timezoneSelect.scrollIntoViewIfNeeded();
+    const timezoneSelect = page.locator("#timezone-select");
+    await expect(timezoneSelect).toBeVisible();
 
-    const options = await timezoneSelect.locator("option").all();
-    const optionTexts = await Promise.all(
-      options.map(async (option) => {
-        const value = await option.value();
-        const text = await option.textContent();
-        return { value, text: text ?? "" };
-      }),
-    );
+    const optionCount = await timezoneSelect.locator("option").count();
+    expect(optionCount).toBe(EXPECTED_TIMEZONES.length);
 
-    const actualTimezones = optionTexts.map((opt) => ({
-      value: opt.value,
-      label: opt.text,
-    }));
+    const actualTimezones = [];
+    for (let i = 0; i < optionCount; i++) {
+      const option = timezoneSelect.locator("option").nth(i);
+      const value = await option.value();
+      const text = await option.textContent();
+      actualTimezones.push({ value, label: text ?? "" });
+    }
 
-    expect(actualTimezones).toEqual(EXPECTED_TIMEZONES);
+    expect(actualTimezones).toEqual(EXPECTED_TIME_ZONES);
   });
 
   test("сохраняет выбранный часовой пояс в localStorage", async ({ page }) => {
     await page.goto("/");
 
-    const timezoneSelect = page.getByLabel("Часовой пояс");
+    const timezoneSelect = page.locator("#timezone-select");
     await timezoneSelect.selectOption("Asia/Tokyo");
 
     const stored = await page.evaluate(() => {
