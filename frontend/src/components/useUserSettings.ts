@@ -8,7 +8,9 @@ export function useUserSettings() {
   const setTimezone = useCallback((timezone: string) => {
     const newSettings = { timezone };
     saveSettings(newSettings);
-    window.dispatchEvent(new CustomEvent("user-settings-changed", { detail: newSettings }));
+    window.dispatchEvent(
+      new CustomEvent("user-settings-changed", { detail: newSettings }),
+    );
   }, []);
 
   return { settings, setTimezone, TIMEZONES };
