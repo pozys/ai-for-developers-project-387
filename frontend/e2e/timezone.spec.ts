@@ -33,7 +33,7 @@ test.describe("Выбор часового пояса", () => {
       actualTimezones.push({ value, label: text ?? "" });
     }
 
-    expect(actualTimezones).toEqual(EXPECTED_TIME_ZONES);
+    expect(actualTimezones).toEqual(EXPECTED_TIMEZONES);
   });
 
   test("сохраняет выбранный часовой пояс в localStorage", async ({ page }) => {
