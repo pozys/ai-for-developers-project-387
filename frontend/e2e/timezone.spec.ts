@@ -28,7 +28,7 @@ test.describe("Выбор часового пояса", () => {
     const actualTimezones = [];
     for (let i = 0; i < optionCount; i++) {
       const option = timezoneSelect.locator("option").nth(i);
-      const value = await option.value();
+      const value = await option.getAttribute("value");
       const text = await option.textContent();
       actualTimezones.push({ value, label: text ?? "" });
     }
