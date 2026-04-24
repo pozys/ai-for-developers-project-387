@@ -11,6 +11,8 @@ export const TIMEZONES = [
   { value: "UTC", label: "UTC (UTC+0)" },
 ];
 
+export const DEFAULT_TIMEZONE = "Europe/Moscow";
+
 const STORAGE_KEY = "user-settings";
 
 import { type UserSettings } from "@/types/api";
@@ -24,7 +26,7 @@ export function loadSettings(): UserSettings {
   } catch {
     // ignore
   }
-  return { timezone: "Europe/Moscow" };
+  return { timezone: DEFAULT_TIMEZONE };
 }
 
 export function saveSettings(settings: UserSettings) {
