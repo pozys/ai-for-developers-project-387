@@ -41,6 +41,8 @@ jobs:
       - name: Prepare backend database
         working-directory: backend
         run: |
+          mkdir -p var/data
+          rm -f var/data/app.db
           APP_ENV=dev composer db:migrate
           APP_ENV=dev composer db:fixtures
 
