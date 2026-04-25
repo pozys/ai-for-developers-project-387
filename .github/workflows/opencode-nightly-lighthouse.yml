@@ -12,6 +12,7 @@ concurrency:
 jobs:
   lighthouse:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       id-token: write
       contents: write
@@ -135,7 +136,138 @@ jobs:
           path: ${{ steps.report-dir.outputs.path }}
           retention-days: 14
 
+      - name: Update rolling Lighthouse issue
+        uses: actions/github-script@v7
+        env:
+          ARTIFACT_URL: ${{ steps.upload-report.outputs.artifact-url }}
+          REPORT_DIR: ${{ steps.report-dir.outputs.path }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        with:
+          script: |
+            const fs = require('node:fs');
+            const path = require('node:path');
+
+            const { owner, repo } = context.repo;
+            const issueTitle = process.env.LIGHTHOUSE_ISSUE_TITLE;
+            const label = process.env.LIGHTHOUSE_LABEL;
+            const reportDir = process.env.REPORT_DIR;
+
+            const reportFile = fs
+              .readdirSync(reportDir)
+              .find((file) => file.endsWith('.report.json'));
+
+            if (!reportFile) {
+              throw new Error(`No Lighthouse report JSON found in ${reportDir}`);
+            }
+
+            const report = JSON.parse(
+              fs.readFileSync(path.join(reportDir, reportFile), 'utf8'),
+            );
+
+            const categoryNames = {
+              performance: 'Performance',
+              accessibility: 'Accessibility',
+              'best-practices': 'Best Practices',
+              seo: 'SEO',
+            };
+
+            const scoreLine = Object.entries(categoryNames)
+              .map(([id, name]) => {
+                const score = report.categories?.[id]?.score;
+                const value =
+                  typeof score === 'number' ? Math.round(score * 100) : 'n/a';
+                return `- ${name}: ${value}`;
+              })
+              .join('\n');
+
+            const clean = (value = '') =>
+              value
+                .replace(/<[^>]+>/g, '')
+                .replace(/\s+/g, ' ')
+                .trim();
+
+            const findingsByCategory = Object.entries(categoryNames).map(
+              ([categoryId, categoryName]) => {
+                const auditRefs = report.categories?.[categoryId]?.auditRefs ?? [];
+                const findings = auditRefs
+                  .map((auditRef) => report.audits?.[auditRef.id])
+                  .filter(
+                    (audit) =>
+                      audit &&
+                      typeof audit.score === 'number' &&
+                      audit.score < 1 &&
+                      audit.scoreDisplayMode !== 'notApplicable',
+                  )
+                  .slice(0, 8);
+
+                if (findings.length === 0) {
+                  return `### ${categoryName}\nNo follow-up needed.`;
+                }
+
+                const lines = findings.map((audit, index) => {
+                  const description = clean(audit.description);
+                  const suffix = description ? ` ${description}` : '';
+                  return `${index + 1}. **${audit.title}**.${suffix}`;
+                });
+
+                return `### ${categoryName}\n${lines.join('\n')}`;
+              },
+            );
+
+            const now = new Date();
+            const utcDate = now.toISOString();
+            const moscowDate = new Intl.DateTimeFormat('en-GB', {
+              dateStyle: 'medium',
+              timeStyle: 'short',
+              timeZone: 'Europe/Moscow',
+            }).format(now);
+
+            const body = [
+              '## Latest Lighthouse Report',
+              '',
+              `**Run number:** ${context.runNumber}`,
+              `**Run date:** ${utcDate} UTC / ${moscowDate} Europe/Moscow`,
+              `**Run URL:** ${process.env.RUN_URL}`,
+              `**Artifact URL:** ${process.env.ARTIFACT_URL}`,
+              '**Audited URL:** http://127.0.0.1:4173/',
+              '',
+              '### Scores',
+              scoreLine,
+              '',
+              '## Follow-up',
+              findingsByCategory.join('\n\n'),
+              '',
+            ].join('\n');
+
+            const existing = await github.rest.search.issuesAndPullRequests({
+              q: `repo:${owner}/${repo} is:issue is:open label:${label} in:title "${issueTitle}"`,
+              per_page: 10,
+            });
+
+            const issue = existing.data.items.find(
+              (item) => item.title === issueTitle,
+            );
+
+            if (issue) {
+              await github.rest.issues.update({
+                owner,
+                repo,
+                issue_number: issue.number,
+                body,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner,
+                repo,
+                title: issueTitle,
+                labels: [label],
+                body,
+              });
+            }
+
       - name: Run OpenCode follow-up
+        timeout-minutes: 10
+        continue-on-error: true
         uses: anomalyco/opencode/github@latest
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -161,15 +293,14 @@ jobs:
             1. Inspect the Lighthouse report files in ${{ steps.report-dir.outputs.path }}.
             2. Summarize the latest findings grouped by Lighthouse categories: Performance, Accessibility, Best Practices, SEO.
             3. Convert those findings into a concise project follow-up list with concrete fixes that the team can discuss in the morning.
-            4. Find an open issue titled "${{ env.LIGHTHOUSE_ISSUE_TITLE }}" with the label "${{ env.LIGHTHOUSE_LABEL }}".
-            5. If the issue exists, update it with the latest report summary. If it does not exist, create it with that title and label.
-            6. Include the run date, the run URL, and the artifact URL in the issue content.
-            7. If there are no significant problems, explicitly say that no critical follow-up was found for this run.
+            4. The rolling issue titled "${{ env.LIGHTHOUSE_ISSUE_TITLE }}" is already updated by the workflow. Do not edit issues.
+            5. If there are no significant problems, explicitly say that no critical follow-up was found for this run.
 
             Constraints:
             - Do not open a pull request.
             - Do not modify repository files.
-            - Keep the issue focused on actionable follow-up, not raw JSON dumps.
+            - Do not create, update, or comment on GitHub issues.
+            - Keep the output focused on actionable follow-up, not raw JSON dumps.
 
       - name: Print server logs on failure
         if: failure()
