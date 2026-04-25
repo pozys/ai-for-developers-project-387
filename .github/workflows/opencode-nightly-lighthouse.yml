@@ -1,0 +1,181 @@
+name: OpenCode Nightly Lighthouse
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: opencode-nightly-lighthouse
+  cancel-in-progress: true
+
+jobs:
+  lighthouse:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: write
+      issues: write
+      pull-requests: write
+    env:
+      LIGHTHOUSE_LABEL: lighthouse-nightly
+      LIGHTHOUSE_ISSUE_TITLE: Nightly Lighthouse follow-up
+      LIGHTHOUSE_REPORT_DIR: frontend/lighthouse-reports
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          extensions: pdo_sqlite
+          tools: composer:v2
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Prepare backend database
+        working-directory: backend
+        run: |
+          APP_ENV=dev composer db:migrate
+          APP_ENV=dev composer db:fixtures
+
+      - name: Start backend server
+        working-directory: backend
+        run: |
+          APP_ENV=dev composer serve > /tmp/opencode-backend.log 2>&1 &
+          echo $! > /tmp/opencode-backend.pid
+
+      - name: Wait for backend
+        run: |
+          timeout 60 bash -c \
+            'until curl -sf http://127.0.0.1:8000/api/event-types > /dev/null; do sleep 2; done'
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
+      - name: Start frontend preview
+        working-directory: frontend
+        run: |
+          npx http-server@14.1.1 ./dist -a 127.0.0.1 -p 4173 -P http://127.0.0.1:8000? > /tmp/opencode-frontend.log 2>&1 &
+          echo $! > /tmp/opencode-frontend.pid
+
+      - name: Wait for frontend
+        run: |
+          timeout 60 bash -c \
+            'until curl -sf http://127.0.0.1:4173/ > /dev/null; do sleep 2; done'
+
+      - name: Set up Chrome
+        id: setup-chrome
+        uses: browser-actions/setup-chrome@v1
+
+      - name: Run Lighthouse CI collect
+        working-directory: frontend
+        env:
+          CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
+        run: npx @lhci/cli@0.15.x collect --config=./lighthouserc.json
+
+      - name: Export Lighthouse report
+        working-directory: frontend
+        run: npx @lhci/cli@0.15.x upload --config=./lighthouserc.json --target=filesystem --outputDir=./lighthouse-reports
+
+      - name: Ensure rolling issue label exists
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const name = process.env.LIGHTHOUSE_LABEL;
+
+            try {
+              await github.rest.issues.getLabel({ owner, repo, name });
+            } catch (error) {
+              if (error.status !== 404) {
+                throw error;
+              }
+
+              await github.rest.issues.createLabel({
+                owner,
+                repo,
+                name,
+                color: '0E8A16',
+                description: 'Rolling follow-up for nightly Lighthouse audits',
+              });
+            }
+
+      - name: Upload Lighthouse artifact
+        id: upload-report
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-report-${{ github.run_number }}
+          path: ${{ env.LIGHTHOUSE_REPORT_DIR }}
+          retention-days: 14
+
+      - name: Run OpenCode follow-up
+        uses: anomalyco/opencode/github@latest
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+        with:
+          model: opencode/minimax-m2.5-free
+          use_github_token: true
+          prompt: |
+            You are reviewing the nightly Lighthouse audit for this repository.
+
+            Context:
+            - Trigger: ${{ github.event_name }}
+            - Run number: ${{ github.run_number }}
+            - Run URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            - Artifact URL: ${{ steps.upload-report.outputs.artifact-url }}
+            - Artifact directory in workspace: frontend/lighthouse-reports
+            - Lighthouse label: ${{ env.LIGHTHOUSE_LABEL }}
+            - Rolling issue title: ${{ env.LIGHTHOUSE_ISSUE_TITLE }}
+            - Audited URL: http://127.0.0.1:4173/
+            - Local timezone for the team: Europe/Moscow
+
+            Tasks:
+            1. Inspect the Lighthouse report files in frontend/lighthouse-reports.
+            2. Summarize the latest findings grouped by Lighthouse categories: Performance, Accessibility, Best Practices, SEO.
+            3. Convert those findings into a concise project follow-up list with concrete fixes that the team can discuss in the morning.
+            4. Find an open issue titled "${{ env.LIGHTHOUSE_ISSUE_TITLE }}" with the label "${{ env.LIGHTHOUSE_LABEL }}".
+            5. If the issue exists, update it with the latest report summary. If it does not exist, create it with that title and label.
+            6. Include the run date, the run URL, and the artifact URL in the issue content.
+            7. If there are no significant problems, explicitly say that no critical follow-up was found for this run.
+
+            Constraints:
+            - Do not open a pull request.
+            - Do not modify repository files.
+            - Keep the issue focused on actionable follow-up, not raw JSON dumps.
+
+      - name: Print server logs on failure
+        if: failure()
+        run: |
+          printf '\n--- backend ---\n'
+          sed -n '1,200p' /tmp/opencode-backend.log || true
+          printf '\n--- frontend ---\n'
+          sed -n '1,200p' /tmp/opencode-frontend.log || true
+
+      - name: Stop local servers
+        if: always()
+        run: |
+          if [ -f /tmp/opencode-frontend.pid ]; then
+            kill "$(cat /tmp/opencode-frontend.pid)" || true
+          fi
+          if [ -f /tmp/opencode-backend.pid ]; then
+            kill "$(cat /tmp/opencode-backend.pid)" || true
+          fi

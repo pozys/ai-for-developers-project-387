@@ -1,4 +1,5 @@
 ### Hexlet tests and linter status:
+
 [![Actions Status](https://github.com/pozys/ai-for-developers-project-387/actions/workflows/hexlet-check.yml/badge.svg)](https://github.com/pozys/ai-for-developers-project-387/actions)
 
 # Встречалка
@@ -12,24 +13,30 @@
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://vstrechalka.onrender.com)
 
 ## Возможности
+
 - Публичная запись без регистрации
 - Выбор формата встречи, даты и свободного слота
 - Создание и редактирование типов событий в админке
 - Просмотр предстоящих встреч
 
 ## Frontend
+
 React 19, TypeScript, Vite, Tailwind, shadcn/ui
 
 ## Backend
+
 PHP 8.4, Symfony 7.2, Doctrine
 
 ## Проверка качества
+
 - Локально: `make lint`, `make lint-backend`, `make lint-frontend`, `make format`
 - Pre-commit: `husky` + `lint-staged` (только staged-файлы)
 - CI: blocking jobs `backend-lint` и `frontend-lint`
 - Проверяется весь репозиторий; при любой ошибке линтера или статического анализа проверка завершается с ошибкой
+- Nightly audit: workflow `OpenCode Nightly Lighthouse` запускается по расписанию в `03:00` по Москве и доступен для ручного запуска через GitHub Actions; HTML/JSON-отчет сохраняется в artifacts, а OpenCode обновляет rolling issue `Nightly Lighthouse follow-up`
 
 ## Запуск
+
 `make install`  
 `make serve`  
 `make dev`
