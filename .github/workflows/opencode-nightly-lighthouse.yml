@@ -111,21 +111,22 @@ jobs:
             const { owner, repo } = context.repo;
             const name = process.env.LIGHTHOUSE_LABEL;
 
-            try {
-              await github.rest.issues.getLabel({ owner, repo, name });
-            } catch (error) {
-              if (error.status !== 404) {
-                throw error;
-              }
+            await github.rest.issues
+              .getLabel({ owner, repo, name })
+              .then(() => {})
+              .catch(async (error) => {
+                if (error.status !== 404) {
+                  throw error;
+                }
 
-              await github.rest.issues.createLabel({
-                owner,
-                repo,
-                name,
-                color: '0E8A16',
-                description: 'Rolling follow-up for nightly Lighthouse audits',
+                await github.rest.issues.createLabel({
+                  owner,
+                  repo,
+                  name,
+                  color: '0E8A16',
+                  description: 'Rolling follow-up for nightly Lighthouse audits',
+                });
               });
-            }
 
       - name: Upload Lighthouse artifact
         id: upload-report
