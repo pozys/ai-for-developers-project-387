@@ -14,7 +14,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
-      id-token: write
       contents: read
       issues: write
     env:
@@ -257,43 +256,6 @@ jobs:
                 body,
               });
             }
-
-      - name: Run OpenCode follow-up
-        timeout-minutes: 10
-        continue-on-error: true
-        uses: anomalyco/opencode/github@latest
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
-        with:
-          model: opencode/minimax-m2.5-free
-          use_github_token: true
-          prompt: |
-            You are reviewing the nightly Lighthouse audit for this repository.
-
-            Context:
-            - Trigger: ${{ github.event_name }}
-            - Run number: ${{ github.run_number }}
-            - Run URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-            - Artifact URL: ${{ steps.upload-report.outputs.artifact-url }}
-            - Report directory on disk: ${{ steps.report-dir.outputs.path }}
-            - Lighthouse label: ${{ env.LIGHTHOUSE_LABEL }}
-            - Rolling issue title: ${{ env.LIGHTHOUSE_ISSUE_TITLE }}
-            - Audited URL: http://127.0.0.1:4173/
-            - Local timezone for the team: Europe/Moscow
-
-            Tasks:
-            1. Inspect the Lighthouse report files in ${{ steps.report-dir.outputs.path }}.
-            2. Summarize the latest findings grouped by the Lighthouse categories present in the report.
-            3. Convert those findings into a concise project follow-up list with concrete fixes that the team can discuss in the morning.
-            4. The rolling issue titled "${{ env.LIGHTHOUSE_ISSUE_TITLE }}" is already updated by the workflow. Do not edit issues.
-            5. If there are no significant problems, explicitly say that no critical follow-up was found for this run.
-
-            Constraints:
-            - Do not open a pull request.
-            - Do not modify repository files.
-            - Do not create, update, or comment on GitHub issues.
-            - Keep the output focused on actionable follow-up, not raw JSON dumps.
 
       - name: Print server logs on failure
         if: failure()
