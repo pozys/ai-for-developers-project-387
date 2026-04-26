@@ -164,19 +164,14 @@ jobs:
               fs.readFileSync(path.join(reportDir, reportFile), 'utf8'),
             );
 
-            const categoryNames = {
-              performance: 'Performance',
-              accessibility: 'Accessibility',
-              'best-practices': 'Best Practices',
-              seo: 'SEO',
-            };
+            const categories = Object.entries(report.categories ?? {});
 
-            const scoreLine = Object.entries(categoryNames)
-              .map(([id, name]) => {
-                const score = report.categories?.[id]?.score;
+            const scoreLine = categories
+              .map(([id, category]) => {
+                const score = category?.score;
                 const value =
                   typeof score === 'number' ? Math.round(score * 100) : 'n/a';
-                return `- ${name}: ${value}`;
+                return `- ${category?.title ?? id}: ${value}`;
               })
               .join('\n');
 
@@ -186,33 +181,31 @@ jobs:
                 .replace(/\s+/g, ' ')
                 .trim();
 
-            const findingsByCategory = Object.entries(categoryNames).map(
-              ([categoryId, categoryName]) => {
-                const auditRefs = report.categories?.[categoryId]?.auditRefs ?? [];
-                const findings = auditRefs
-                  .map((auditRef) => report.audits?.[auditRef.id])
-                  .filter(
-                    (audit) =>
-                      audit &&
-                      typeof audit.score === 'number' &&
-                      audit.score < 1 &&
-                      audit.scoreDisplayMode !== 'notApplicable',
-                  )
-                  .slice(0, 8);
+            const findingsByCategory = categories.map(([categoryId, category]) => {
+              const auditRefs = category?.auditRefs ?? [];
+              const findings = auditRefs
+                .map((auditRef) => report.audits?.[auditRef.id])
+                .filter(
+                  (audit) =>
+                    audit &&
+                    typeof audit.score === 'number' &&
+                    audit.score < 1 &&
+                    audit.scoreDisplayMode !== 'notApplicable',
+                )
+                .slice(0, 8);
 
-                if (findings.length === 0) {
-                  return `### ${categoryName}\nNo follow-up needed.`;
-                }
+              if (findings.length === 0) {
+                return `### ${category?.title ?? categoryId}\nNo follow-up needed.`;
+              }
 
-                const lines = findings.map((audit, index) => {
-                  const description = clean(audit.description);
-                  const suffix = description ? ` ${description}` : '';
-                  return `${index + 1}. **${audit.title}**.${suffix}`;
-                });
+              const lines = findings.map((audit, index) => {
+                const description = clean(audit.description);
+                const suffix = description ? ` ${description}` : '';
+                return `${index + 1}. **${audit.title}**.${suffix}`;
+              });
 
-                return `### ${categoryName}\n${lines.join('\n')}`;
-              },
-            );
+              return `### ${category?.title ?? categoryId}\n${lines.join('\n')}`;
+            });
 
             const now = new Date();
             const utcDate = now.toISOString();
@@ -291,7 +284,7 @@ jobs:
 
             Tasks:
             1. Inspect the Lighthouse report files in ${{ steps.report-dir.outputs.path }}.
-            2. Summarize the latest findings grouped by Lighthouse categories: Performance, Accessibility, Best Practices, SEO.
+            2. Summarize the latest findings grouped by the Lighthouse categories present in the report.
             3. Convert those findings into a concise project follow-up list with concrete fixes that the team can discuss in the morning.
             4. The rolling issue titled "${{ env.LIGHTHOUSE_ISSUE_TITLE }}" is already updated by the workflow. Do not edit issues.
             5. If there are no significant problems, explicitly say that no critical follow-up was found for this run.
