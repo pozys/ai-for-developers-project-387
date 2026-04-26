@@ -17,7 +17,6 @@ jobs:
       id-token: write
       contents: write
       issues: write
-      pull-requests: write
     env:
       LIGHTHOUSE_LABEL: lighthouse-nightly
       LIGHTHOUSE_ISSUE_TITLE: Nightly Lighthouse follow-up
