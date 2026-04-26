@@ -52,3 +52,7 @@ export interface ErrorResponse {
   message: string;
   errors?: ValidationError[];
 }
+
+export interface UserSettings {
+  timezone: string;
+}
