@@ -19,9 +19,16 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { Select, SelectItem } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getFirstAvailableDateKey } from "@/lib/bookingDate";
-import { formatDateLabel, formatSlotRange } from "@/lib/date";
+import {
+  formatDateLabel,
+  formatSlotRange,
+  getTimezone,
+  setTimezone,
+} from "@/lib/date";
+import { TIMEZONES } from "@/lib/date";
 
 type BookingStep = "select" | "form" | "confirmed";
 
@@ -44,6 +51,9 @@ export default function BookingPage() {
   );
   const [eventTypeRequestKey, setEventTypeRequestKey] = useState(0);
   const [slotsRequestKey, setSlotsRequestKey] = useState(0);
+  const [selectedTimezone, setSelectedTimezone] = useState<string>(() =>
+    getTimezone(),
+  );
   const stepItems = [
     { key: "select", label: "Дата и слот" },
     { key: "form", label: "Контакты" },
@@ -143,6 +153,10 @@ export default function BookingPage() {
       isMounted = false;
     };
   }, [eventType, selectedDate, slotsRequestKey]);
+
+  useEffect(() => {
+    setSlotsRequestKey((key) => key + 1);
+  }, [selectedTimezone]);
 
   function handleSelectDate(dateKey: string) {
     setSelectedDate(dateKey);
@@ -411,7 +425,20 @@ export default function BookingPage() {
           </div>
           <div className="rounded-xl border border-border/70 bg-muted/30 p-3">
             <p className="text-muted-foreground">Часовой пояс</p>
-            <p className="font-medium text-foreground">Europe/Moscow</p>
+            <Select
+              value={selectedTimezone}
+              onChange={(e) => {
+                const value = e.target.value;
+                setTimezone(value);
+                setSelectedTimezone(value);
+              }}
+            >
+              {TIMEZONES.map((tz) => (
+                <SelectItem key={tz.value} value={tz.value}>
+                  {tz.label}
+                </SelectItem>
+              ))}
+            </Select>
           </div>
         </CardContent>
       </Card>
